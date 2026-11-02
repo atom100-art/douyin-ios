@@ -4,6 +4,8 @@ options:
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
 
 settings:
   base:

@@ -7,21 +7,28 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
-    timeout-minutes: 30
+    runs-on: macos-15
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          ls /Applications | grep -i "^Xcode" || true
+          swift --version
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          xcodegen --version
+          xcodegen generate
+          echo "--- objectVersion ---"
+          grep -m1 objectVersion DouyinDL.xcodeproj/project.pbxproj || true
 
       - name: Build (unsigned)
         run: |
@@ -35,23 +42,28 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            build
+            build 2>&1 | tail -120
 
       - name: Package unsigned ipa
+        if: success()
         run: |
           APP="build/Release-iphoneos/DouyinDL.app"
           if [ ! -d "$APP" ]; then
-            echo "产物不存在，尝试其他路径"
-            find build -maxdepth 4 -name "DouyinDL.app" -type d
-            APP=$(find build -maxdepth 4 -name "DouyinDL.app" -type d | head -1)
+            echo "默认路径没有产物，全局搜索"
+            APP=$(find build -maxdepth 5 -name "DouyinDL.app" -type d | head -1)
           fi
           echo "APP = $APP"
+          test -d "$APP"
+          rm -rf Payload
           mkdir -p Payload
           cp -R "$APP" Payload/
+          rm -f DouyinDL-unsigned.ipa
           zip -qry DouyinDL-unsigned.ipa Payload
           ls -lh DouyinDL-unsigned.ipa
+          shasum -a 256 DouyinDL-unsigned.ipa
 
       - name: Upload ipa
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: DouyinDL-unsigned-ipa
