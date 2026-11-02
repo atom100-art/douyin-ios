@@ -1,0 +1,59 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project DouyinDL.xcodeproj \
+            -target DouyinDL \
+            -configuration Release \
+            -sdk iphoneos \
+            SYMROOT="$PWD/build" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package unsigned ipa
+        run: |
+          APP="build/Release-iphoneos/DouyinDL.app"
+          if [ ! -d "$APP" ]; then
+            echo "产物不存在，尝试其他路径"
+            find build -maxdepth 4 -name "DouyinDL.app" -type d
+            APP=$(find build -maxdepth 4 -name "DouyinDL.app" -type d | head -1)
+          fi
+          echo "APP = $APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry DouyinDL-unsigned.ipa Payload
+          ls -lh DouyinDL-unsigned.ipa
+
+      - name: Upload ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: DouyinDL-unsigned-ipa
+          path: DouyinDL-unsigned.ipa
+          retention-days: 30
